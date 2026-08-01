@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MotoLease SA — Order Spares and Accessories</title>
+  <style>
+    :root {
+      --brand: #C8102E;
+      --dark: #111111;
+      --bg: #f5f5f5;
+      --card: #ffffff;
+      --border: #e2e2e2;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--dark);
+      padding-bottom: 90px;
+    }
+    header {
+      background: var(--dark);
+      color: white;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    header .brand { font-weight: bold; font-size: 18px; }
+    header .brand span { color: var(--brand); }
+    header .user-block { text-align: right; }
+    header .user-name { font-size: 13px; font-weight: 600; }
+    header .user { font-size: 11px; opacity: 0.8; }
+    header .role-badge {
+      font-size: 9.5px;
+      padding: 1px 6px;
+      border-radius: 10px;
+      background: var(--brand);
+      display: inline-block;
+      margin-top: 2px;
+    }
+    header .link-row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 2px; }
+    header .apply-link, header .switch-link {
+      font-size: 10.5px;
+      color: #ccc;
+      text-decoration: underline;
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+    }
+
+    .search-bar {
+      padding: 12px 16px;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 52px;
+      z-index: 9;
+    }
+    .search-bar input {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 15px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 12px;
+      padding: 14px 16px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .card img {
+      width: 100%;
+      height: 110px;
+      object-fit: contain;
+      background: #fafafa;
+      border-bottom: 1px solid var(--border);
+    }
+    .card .noimg {
+      width: 100%;
+      height: 110px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #bbb;
+      font-size: 11px;
+      background: #fafafa;
+      border-bottom: 1px solid var(--border);
+    }
+    .card-body { padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+    .card-body .name { font-size: 12.5px; font-weight: 600; line-height: 1.3; min-height: 32px; }
+    .card-body .sku { font-size: 10.5px; color: #888; }
+    .card-body .price { font-size: 13.5px; font-weight: bold; color: var(--brand); }
+    .card-body .qty-left { font-size: 10.5px; color: #666; }
+    .card-body .qty-left.low { color: var(--brand); font-weight: 600; }
+
+    .add-row { display: flex; gap: 6px; margin-top: 6px; }
+    .add-row input {
+      width: 46px;
+      padding: 6px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      text-align: center;
+    }
+    .add-row button {
+      flex: 1;
+      background: var(--dark);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      padding: 6px 4px;
+    }
+    .add-row button:active { opacity: 0.8; }
+
+    .cart-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: var(--dark);
+      color: white;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 20;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+    }
+    .cart-bar .info { font-size: 13px; }
+    .cart-bar .info b { color: var(--brand); }
+    .cart-bar button {
+      background: var(--brand);
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 30;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    .overlay.open { display: flex; }
+    .overlay.center { align-items: center; }
+    .sheet {
+      background: white;
+      width: 100%;
+      max-width: 480px;
+      max-height: 85vh;
+      border-radius: 16px 16px 0 0;
+      padding: 18px;
+      overflow-y: auto;
+    }
+    .overlay.center .sheet { border-radius: 16px; }
+    .sheet h2 { margin-top: 0; font-size: 18px; }
+    .sheet p.lead { font-size: 13px; color: #666; margin-top: -4px; }
+    .sheet-close { float: right; font-size: 22px; background: none; border: none; color: #888; }
+
+    .line-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .line-item .li-name { flex: 1; font-size: 13px; }
+    .line-item .li-sku { font-size: 10.5px; color: #888; }
+    .line-item input {
+      width: 46px;
+      padding: 5px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      text-align: center;
+    }
+    .line-item .li-total { width: 70px; text-align: right; font-size: 13px; font-weight: 600; }
+    .line-item .li-remove { background: none; border: none; color: var(--brand); font-size: 18px; }
+
+    .doc-toggle {
+      display: flex;
+      gap: 8px;
+      margin: 14px 0;
+    }
+    .doc-toggle label {
+      flex: 1;
+      text-align: center;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .doc-toggle input { display: none; }
+    .doc-toggle input:checked + span { font-weight: bold; }
+    .doc-toggle label.active { background: var(--dark); color: white; border-color: var(--dark); }
+    .guest-note { font-size: 12px; color: #666; background: #f0f0f0; padding: 8px 10px; border-radius: 8px; margin: 10px 0; }
+
+    .field { margin-bottom: 10px; }
+    .field label { font-size: 12px; color: #666; display: block; margin-bottom: 4px; }
+    .field input, .field select {
+      width: 100%;
+      padding: 9px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 14px;
+    }
+    .field input:disabled { background: #f0f0f0; color: #888; }
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      padding: 4px 0;
+    }
+    .summary-row.grand { font-size: 16px; font-weight: bold; color: var(--brand); border-top: 1px solid var(--border); padding-top: 8px; margin-top: 6px; }
+
+    .submit-btn {
+      width: 100%;
+      background: var(--brand);
+      color: white;
+      border: none;
+      padding: 14px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      margin-top: 14px;
+    }
+    .submit-btn:disabled { opacity: 0.6; }
+
+    .whatsapp-btn {
+      width: 100%;
+      background: #25D366;
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      margin-top: 8px;
+      text-align: center;
+      text-decoration: none;
+      display: none;
+    }
+
+    .msg { font-size: 12.5px; padding: 8px 10px; border-radius: 8px; margin-top: 10px; }
+    .msg.error { background: #fde8e8; color: #a11; }
+    .msg.success { background: #e8f7ee; color: #157347; }
+
+    .empty-state { text-align: center; padding: 40px 20px; color: #999; font-size: 13px; }
+    .loading-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--brand); animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 0.3 } 50% { opacity: 1 } }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">Moto<span>Lease</span> SA</div>
+    <div class="user-block">
+      <div class="user-name" id="userName"></div>
+      <div class="user" id="userLabel">Not signed in</div>
+      <div id="roleBadge"></div>
+      <div class="link-row">
+        <button class="apply-link" id="applyLink" style="display:none;" onclick="openApply()">Apply to be an agent</button>
+        <button class="switch-link" id="switchLink" style="display:none;" onclick="switchEmail()">Switch</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="search-bar">
+    <input type="text" id="searchInput" placeholder="Search product name…" oninput="renderGrid()">
+  </div>
+
+  <div id="grid" class="grid">
+    <div class="empty-state"><span class="loading-dot"></span> Loading stock…</div>
+  </div>
+
+  <div class="cart-bar" id="cartBar" style="display:none;">
+    <div class="info"><b id="cartCount">0</b> items — R <span id="cartTotal">0.00</span></div>
+    <button onclick="openCart()">View Cart</button>
+  </div>
+
+  <!-- Login gate: shown until an email is entered/remembered -->
+  <div class="overlay center" id="loginOverlay">
+    <div class="sheet">
+      <h2>Welcome to MotoLease SA</h2>
+      <p class="lead">Enter your email to browse stock and generate a quote or invoice.</p>
+      <div class="field">
+        <label>Your email address</label>
+        <input type="email" id="loginEmail" placeholder="you@example.com">
+      </div>
+      <button class="submit-btn" onclick="submitLogin()">Continue</button>
+      <div id="loginMsg"></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="sheet">
+      <button class="sheet-close" onclick="closeCart()">&times;</button>
+      <h2>In Cart</h2>
+      <div id="cartItems"></div>
+
+      <div id="docToggleWrap">
+        <div class="doc-toggle">
+          <label id="lblQuote" onclick="setDocType('quote')"><input type="radio" name="docType" value="quote"><span>Quotation</span></label>
+          <label id="lblInvoice" onclick="setDocType('invoice')"><input type="radio" name="docType" value="invoice"><span>Invoice</span></label>
+        </div>
+      </div>
+      <div class="guest-note" id="guestNote" style="display:none;">
+        You'll receive a Quotation. Enter your email below to have it sent to you — you can still download it either way.
+      </div>
+
+      <div class="field">
+        <label id="emailFieldLabel">Email address (to receive a copy)</label>
+        <input type="email" id="recipientEmail" placeholder="you@example.com">
+      </div>
+
+      <div class="field">
+        <label>Customer name (optional)</label>
+        <input type="text" id="customerName" placeholder="Walk-in / customer name">
+      </div>
+
+      <div class="summary-row"><span>Total items</span><span id="sumCount">0</span></div>
+      <div class="summary-row grand"><span>Grand Total</span><span>R <span id="sumTotal">0.00</span></span></div>
+
+      <button class="submit-btn" id="submitBtn" onclick="submitOrder()">Submit</button>
+      <a class="whatsapp-btn" id="whatsappBtn" target="_blank">Send to MotoLease on WhatsApp</a>
+      <div id="resultMsg"></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="applyOverlay">
+    <div class="sheet">
+      <button class="sheet-close" onclick="closeApply()">&times;</button>
+      <h2>Apply to be an Agent</h2>
+      <div class="field">
+        <label>Your email</label>
+        <input type="email" id="applyEmail" disabled>
+      </div>
+      <div class="field">
+        <label>Your name</label>
+        <input type="text" id="applyName" placeholder="Full name">
+      </div>
+      <div class="field">
+        <label>Your cell number</label>
+        <input type="text" id="applyCell" placeholder="e.g. 0821234567">
+      </div>
+      <button class="submit-btn" id="applyBtn" onclick="submitApplication()">Submit Application</button>
+      <div id="applyMsg"></div>
+    </div>
+  </div>
+
+<script>
+  // ==========================================================
+  // API_BASE_URL: your Apps Script Web app /exec URL.
+  // If you ever redeploy as a brand-new deployment (not "New
+  // version" on the existing one), update this to match.
+  // ==========================================================
+  const API_BASE_URL = 'https://script.google.com/macros/s/AKfycbx0UhBIQzr0iSjyPuK0g_CDC2NPOUDJOe-VcCQsOVQ6u_9Ydc3FsByK8QGgXOeiKBhR/exec';
+
+  const STORAGE_KEY = 'motolease_user_email';
+  let PRODUCTS = [];
+  let CART = {};
+  let USER_EMAIL = '';
+  let USER_ROLE = 'guest';
+  let DOC_TYPE = 'quote';
+
+  // ---- API helpers ----
+  async function apiGet(action, params) {
+    const url = new URL(API_BASE_URL);
+    url.searchParams.set('action', action);
+    if (params) {
+      Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
+    }
+    const res = await fetch(url.toString());
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || 'Request failed.');
+    return json.data;
+  }
+
+  async function apiPost(action, payload) {
+    // Content-Type must stay text/plain — Apps Script can't respond to
+    // the CORS preflight that application/json would trigger.
+    const res = await fetch(API_BASE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: action, payload: payload })
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || 'Request failed.');
+    return json.data;
+  }
+
+  init();
+
+  function init() {
+    loadProducts();
+
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      USER_EMAIL = saved;
+      document.getElementById('loginOverlay').classList.remove('open');
+      loadUserContext(saved);
+    } else {
+      document.getElementById('loginOverlay').classList.add('open');
+    }
+  }
+
+  function isValidEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+
+  function submitLogin() {
+    const email = document.getElementById('loginEmail').value.trim();
+    if (!isValidEmail(email)) {
+      document.getElementById('loginMsg').innerHTML = '<div class="msg error">Please enter a valid email address.</div>';
+      return;
+    }
+    localStorage.setItem(STORAGE_KEY, email);
+    USER_EMAIL = email;
+    document.getElementById('loginOverlay').classList.remove('open');
+    loadUserContext(email);
+  }
+
+  function switchEmail() {
+    localStorage.removeItem(STORAGE_KEY);
+    location.reload();
+  }
+
+  async function loadProducts() {
+    try {
+      const products = await apiGet('getProducts');
+      onProducts(products);
+    } catch (err) {
+      onLoadError(err);
+    }
+  }
+
+  async function loadUserContext(email) {
+    try {
+      const ctx = await apiGet('getUserContext', { email: email });
+      onUserContext(ctx);
+    } catch (err) {
+      onLoadError(err);
+    }
+  }
+
+  function onProducts(products) {
+    PRODUCTS = products;
+    renderGrid();
+  }
+  function onLoadError(err) {
+    document.getElementById('grid').innerHTML =
+      '<div class="empty-state">Could not load: ' + err.message + '</div>';
+  }
+
+  function onUserContext(ctx) {
+    USER_EMAIL = ctx.email || USER_EMAIL;
+    USER_ROLE = ctx.role;
+    document.getElementById('userLabel').textContent = USER_EMAIL || 'Not signed in';
+    document.getElementById('userName').textContent = ctx.name || '';
+    document.getElementById('switchLink').style.display = USER_EMAIL ? 'inline-block' : 'none';
+
+    const badge = document.getElementById('roleBadge');
+    const applyLink = document.getElementById('applyLink');
+
+    if (USER_ROLE === 'owner') {
+      badge.innerHTML = '<span class="role-badge">Owner</span>';
+      applyLink.style.display = 'none';
+    } else if (USER_ROLE === 'agent') {
+      badge.innerHTML = '<span class="role-badge">Agent</span>';
+      applyLink.style.display = 'none';
+    } else {
+      badge.innerHTML = '';
+      if (ctx.hasPendingApplication) {
+        applyLink.textContent = 'Application pending';
+        applyLink.style.display = 'inline-block';
+        applyLink.disabled = true;
+      } else {
+        applyLink.textContent = 'Apply to be an agent';
+        applyLink.style.display = 'inline-block';
+        applyLink.disabled = false;
+      }
+    }
+
+    const canInvoice = USER_ROLE === 'owner' || USER_ROLE === 'agent';
+    document.getElementById('docToggleWrap').style.display = canInvoice ? 'block' : 'none';
+    document.getElementById('guestNote').style.display = canInvoice ? 'none' : 'block';
+    DOC_TYPE = canInvoice ? DOC_TYPE : 'quote';
+
+    const emailField = document.getElementById('recipientEmail');
+    if (!emailField.value) emailField.value = USER_EMAIL;
+    document.getElementById('emailFieldLabel').textContent = canInvoice
+      ? 'Email address (optional — leave blank to skip emailing)'
+      : "Email address (required — this is how you'll receive your quote)";
+  }
+
+  function renderGrid() {
+    const q = document.getElementById('searchInput').value.trim().toLowerCase();
+    const filtered = q ? PRODUCTS.filter(p => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)) : PRODUCTS;
+    const grid = document.getElementById('grid');
+
+    if (!filtered.length) {
+      grid.innerHTML = '<div class="empty-state">No products match "' + q + '"</div>';
+      return;
+    }
+
+    grid.innerHTML = filtered.map(p => {
+      const img = p.image
+        ? '<img src="' + p.image + '" loading="lazy" onerror="this.style.display=&#39;none&#39;">'
+        : '<div class="noimg">No image</div>';
+      const lowClass = p.qty <= 3 ? 'low' : '';
+      return `
+        <div class="card">
+          ${img}
+          <div class="card-body">
+            <div class="name">${p.name}</div>
+            <div class="sku">${p.sku}</div>
+            <div class="price">R ${p.price.toFixed(2)}</div>
+            <div class="qty-left ${lowClass}">${p.qty} in stock</div>
+            <div class="add-row">
+              <input type="number" min="1" value="1" id="qty-${p.sku}">
+              <button onclick="addToCart('${p.sku}')">Add</button>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function addToCart(sku) {
+    const product = PRODUCTS.find(p => p.sku === sku);
+    if (!product) return;
+    const qtyInput = document.getElementById('qty-' + sku);
+    const qty = Math.max(1, parseInt(qtyInput.value, 10) || 1);
+
+    if (CART[sku]) {
+      CART[sku].qty += qty;
+    } else {
+      CART[sku] = { sku: product.sku, name: product.name, price: product.price, qty: qty, maxQty: product.qty };
+    }
+    updateCartBar();
+  }
+
+  function updateCartBar() {
+    const items = Object.values(CART);
+    const count = items.reduce((s, i) => s + i.qty, 0);
+    const total = items.reduce((s, i) => s + i.qty * i.price, 0);
+    document.getElementById('cartCount').textContent = count;
+    document.getElementById('cartTotal').textContent = total.toFixed(2);
+    document.getElementById('cartBar').style.display = count ? 'flex' : 'none';
+  }
+
+  function openCart() {
+    renderCartItems();
+    setDocType(DOC_TYPE);
+    document.getElementById('whatsappBtn').style.display = 'none';
+    document.getElementById('overlay').classList.add('open');
+  }
+  function closeCart() {
+    document.getElementById('overlay').classList.remove('open');
+  }
+
+  function renderCartItems() {
+    const items = Object.values(CART);
+    const container = document.getElementById('cartItems');
+    if (!items.length) {
+      container.innerHTML = '<div class="empty-state">Your cart is empty.</div>';
+    } else {
+      container.innerHTML = items.map(i => `
+        <div class="line-item">
+          <div style="flex:1">
+            <div class="li-name">${i.name}</div>
+            <div class="li-sku">${i.sku}</div>
+          </div>
+          <input type="number" min="1" value="${i.qty}" onchange="updateQty('${i.sku}', this.value)">
+          <div class="li-total">R ${(i.qty * i.price).toFixed(2)}</div>
+          <button class="li-remove" onclick="removeItem('${i.sku}')">&times;</button>
+        </div>`).join('');
+    }
+    updateSummary();
+  }
+
+  function updateQty(sku, val) {
+    const qty = Math.max(1, parseInt(val, 10) || 1);
+    CART[sku].qty = qty;
+    updateCartBar();
+    updateSummary();
+  }
+  function removeItem(sku) {
+    delete CART[sku];
+    renderCartItems();
+    updateCartBar();
+  }
+  function updateSummary() {
+    const items = Object.values(CART);
+    const count = items.reduce((s, i) => s + i.qty, 0);
+    const total = items.reduce((s, i) => s + i.qty * i.price, 0);
+    document.getElementById('sumCount').textContent = count;
+    document.getElementById('sumTotal').textContent = total.toFixed(2);
+  }
+
+  function setDocType(type) {
+    const canInvoice = USER_ROLE === 'owner' || USER_ROLE === 'agent';
+    DOC_TYPE = canInvoice ? type : 'quote';
+    document.getElementById('lblQuote').classList.toggle('active', DOC_TYPE === 'quote');
+    document.getElementById('lblInvoice').classList.toggle('active', DOC_TYPE === 'invoice');
+    const radio = document.querySelector('input[name="docType"][value="' + DOC_TYPE + '"]');
+    if (radio) radio.checked = true;
+  }
+
+  async function submitOrder() {
+    const items = Object.values(CART);
+    if (!items.length) {
+      showMsg('Add at least one item to your cart.', 'error');
+      return;
+    }
+
+    const payload = {
+      docType: DOC_TYPE,
+      userEmail: USER_EMAIL,
+      customerName: document.getElementById('customerName').value,
+      recipientEmail: document.getElementById('recipientEmail').value.trim(),
+      items: items.map(i => ({ sku: i.sku, qty: i.qty }))
+    };
+
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Working…';
+    showMsg('', '');
+
+    try {
+      const result = await apiPost('submitOrder', payload);
+      onSubmitSuccess(result);
+    } catch (err) {
+      onSubmitError(err);
+    }
+  }
+
+  function onSubmitSuccess(result) {
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = false;
+    btn.textContent = 'Submit';
+
+    let msg = result.docNumber + ' created — R ' + result.total.toFixed(2) + ' (' + result.totalUnits + ' items).';
+    if (result.emailSent) msg += ' A copy has been emailed.';
+    showMsg(msg, 'success');
+
+    const link = document.createElement('a');
+    link.href = 'data:application/pdf;base64,' + result.pdfBase64;
+    link.download = result.fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    const waBtn = document.getElementById('whatsappBtn');
+    if (result.whatsappLink) {
+      waBtn.href = result.whatsappLink;
+      waBtn.style.display = 'block';
+    } else {
+      waBtn.style.display = 'none';
+    }
+
+    CART = {};
+    updateCartBar();
+    renderCartItems();
+    loadProducts();
+  }
+
+  function onSubmitError(err) {
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = false;
+    btn.textContent = 'Submit';
+    showMsg(err.message, 'error');
+  }
+
+  function showMsg(text, type) {
+    const el = document.getElementById('resultMsg');
+    if (!text) { el.innerHTML = ''; return; }
+    el.innerHTML = '<div class="msg ' + type + '">' + text + '</div>';
+  }
+
+  function openApply() {
+    if (document.getElementById('applyLink').disabled) return;
+    document.getElementById('applyEmail').value = USER_EMAIL;
+    document.getElementById('applyOverlay').classList.add('open');
+  }
+  function closeApply() {
+    document.getElementById('applyOverlay').classList.remove('open');
+  }
+  async function submitApplication() {
+    const name = document.getElementById('applyName').value.trim();
+    const cell = document.getElementById('applyCell').value.trim();
+    const email = USER_EMAIL;
+    if (!name || !cell) {
+      document.getElementById('applyMsg').innerHTML = '<div class="msg error">Please fill in your name and cell number.</div>';
+      return;
+    }
+    const btn = document.getElementById('applyBtn');
+    btn.disabled = true;
+    btn.textContent = 'Submitting…';
+
+    try {
+      await apiPost('applyToBeAgent', { name: name, email: email, cell: cell });
+      document.getElementById('applyMsg').innerHTML = '<div class="msg success">Application submitted, awaiting approval.</div>';
+      btn.textContent = 'Submitted';
+      document.getElementById('applyLink').textContent = 'Application pending';
+      document.getElementById('applyLink').disabled = true;
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = 'Submit Application';
+      document.getElementById('applyMsg').innerHTML = '<div class="msg error">' + err.message + '</div>';
+    }
+  }
+</script>
+</body>
+</html>
