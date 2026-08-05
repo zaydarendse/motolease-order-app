@@ -44,6 +44,7 @@
       display: inline-block;
       margin-top: 2px;
     }
+    header .role-badge.admin { background: #333; border: 1px solid #666; }
     header .link-row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 2px; }
     header .apply-link, header .switch-link {
       font-size: 10.5px;
@@ -217,12 +218,13 @@
 
     .field { margin-bottom: 10px; }
     .field label { font-size: 12px; color: #666; display: block; margin-bottom: 4px; }
-    .field input, .field select {
+    .field input, .field select, .field textarea {
       width: 100%;
       padding: 9px;
       border-radius: 8px;
       border: 1px solid var(--border);
       font-size: 14px;
+      font-family: inherit;
     }
     .field input:disabled { background: #f0f0f0; color: #888; }
 
@@ -339,6 +341,11 @@
         <input type="text" id="customerName" placeholder="Walk-in / customer name">
       </div>
 
+      <div class="field" id="commentsField" style="display:none;">
+        <label>Notes (optional — appears on the PDF)</label>
+        <textarea id="comments" rows="2" placeholder="Anything worth noting..."></textarea>
+      </div>
+
       <div class="summary-row"><span>Total items</span><span id="sumCount">0</span></div>
       <div class="summary-row grand"><span>Grand Total</span><span>R <span id="sumTotal">0.00</span></span></div>
 
@@ -382,6 +389,9 @@
   let CART = {};
   let USER_EMAIL = '';
   let USER_ROLE = 'guest';
+  let USER_IS_ADMIN = false;
+  const FEE_SKUS = ['SKULAB', 'SKUDEL'];
+  function isFeeSku(sku) { return FEE_SKUS.indexOf(sku) !== -1; }
   let DOC_TYPE = 'quote';
 
   // ---- API helpers ----
@@ -413,8 +423,6 @@
   init();
 
   function init() {
-    loadProducts();
-
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       USER_EMAIL = saved;
@@ -422,6 +430,7 @@
       loadUserContext(saved);
     } else {
       document.getElementById('loginOverlay').classList.add('open');
+      loadProducts();
     }
   }
 
@@ -448,7 +457,7 @@
 
   async function loadProducts() {
     try {
-      const products = await apiGet('getProducts');
+      const products = await apiGet('getProducts', USER_EMAIL ? { email: USER_EMAIL } : {});
       onProducts(products);
     } catch (err) {
       onLoadError(err);
@@ -459,6 +468,7 @@
     try {
       const ctx = await apiGet('getUserContext', { email: email });
       onUserContext(ctx);
+      loadProducts();
     } catch (err) {
       onLoadError(err);
     }
@@ -476,6 +486,7 @@
   function onUserContext(ctx) {
     USER_EMAIL = ctx.email || USER_EMAIL;
     USER_ROLE = ctx.role;
+    USER_IS_ADMIN = !!ctx.isAdmin;
     document.getElementById('userLabel').textContent = USER_EMAIL || 'Not signed in';
     document.getElementById('userName').textContent = ctx.name || '';
     document.getElementById('switchLink').style.display = USER_EMAIL ? 'inline-block' : 'none';
@@ -484,10 +495,10 @@
     const applyLink = document.getElementById('applyLink');
 
     if (USER_ROLE === 'owner') {
-      badge.innerHTML = '<span class="role-badge">Owner</span>';
+      badge.innerHTML = '<span class="role-badge">Owner</span>' + (USER_IS_ADMIN ? ' <span class="role-badge admin">Admin</span>' : '');
       applyLink.style.display = 'none';
     } else if (USER_ROLE === 'agent') {
-      badge.innerHTML = '<span class="role-badge">Agent</span>';
+      badge.innerHTML = '<span class="role-badge">Agent</span>' + (USER_IS_ADMIN ? ' <span class="role-badge admin">Admin</span>' : '');
       applyLink.style.display = 'none';
     } else {
       badge.innerHTML = '';
@@ -505,6 +516,7 @@
     const canInvoice = USER_ROLE === 'owner' || USER_ROLE === 'agent';
     document.getElementById('docToggleWrap').style.display = canInvoice ? 'block' : 'none';
     document.getElementById('guestNote').style.display = canInvoice ? 'none' : 'block';
+    document.getElementById('commentsField').style.display = canInvoice ? 'block' : 'none';
     DOC_TYPE = canInvoice ? DOC_TYPE : 'quote';
 
     const emailField = document.getElementById('recipientEmail');
@@ -529,14 +541,18 @@
         ? '<img src="' + p.image + '" loading="lazy" onerror="this.style.display=&#39;none&#39;">'
         : '<div class="noimg">No image</div>';
       const lowClass = p.qty <= 3 ? 'low' : '';
+      const priceLine = p.isFee
+        ? '<div class="price">Priced when added</div>'
+        : '<div class="price">R ' + p.price.toFixed(2) + '</div>';
+      const qtyLine = p.isFee ? '' : '<div class="qty-left ' + lowClass + '">' + p.qty + ' in stock</div>';
       return `
         <div class="card">
           ${img}
           <div class="card-body">
             <div class="name">${p.name}</div>
             <div class="sku">${p.sku}</div>
-            <div class="price">R ${p.price.toFixed(2)}</div>
-            <div class="qty-left ${lowClass}">${p.qty} in stock</div>
+            ${priceLine}
+            ${qtyLine}
             <div class="add-row">
               <input type="number" min="1" value="1" id="qty-${p.sku}">
               <button onclick="addToCart('${p.sku}')">Add</button>
@@ -552,10 +568,24 @@
     const qtyInput = document.getElementById('qty-' + sku);
     const qty = Math.max(1, parseInt(qtyInput.value, 10) || 1);
 
+    let unitPrice = product.price;
+    if (isFeeSku(sku)) {
+      const existing = CART[sku] ? CART[sku].price : '';
+      const input = prompt('Enter price for ' + product.name + ' (R):', existing);
+      if (input === null) return; // cancelled, don't add
+      const parsed = parseFloat(input);
+      if (isNaN(parsed) || parsed < 0) {
+        alert('Please enter a valid price.');
+        return;
+      }
+      unitPrice = parsed;
+    }
+
     if (CART[sku]) {
       CART[sku].qty += qty;
+      if (isFeeSku(sku)) CART[sku].price = unitPrice;
     } else {
-      CART[sku] = { sku: product.sku, name: product.name, price: product.price, qty: qty, maxQty: product.qty };
+      CART[sku] = { sku: product.sku, name: product.name, price: unitPrice, qty: qty, maxQty: product.qty, isFee: isFeeSku(sku) };
     }
     updateCartBar();
   }
@@ -639,7 +669,8 @@
       userEmail: USER_EMAIL,
       customerName: document.getElementById('customerName').value,
       recipientEmail: document.getElementById('recipientEmail').value.trim(),
-      items: items.map(i => ({ sku: i.sku, qty: i.qty }))
+      comments: document.getElementById('comments').value.trim(),
+      items: items.map(i => ({ sku: i.sku, qty: i.qty, unitPrice: i.isFee ? i.price : undefined }))
     };
 
     const btn = document.getElementById('submitBtn');
@@ -680,6 +711,7 @@
     }
 
     CART = {};
+    document.getElementById('comments').value = '';
     updateCartBar();
     renderCartItems();
     loadProducts();
