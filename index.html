@@ -268,6 +268,82 @@
     .msg.error { background: #fde8e8; color: #a11; }
     .msg.success { background: #e8f7ee; color: #157347; }
 
+    .card img.zoomable { cursor: zoom-in; }
+
+    /* ---- Product lightbox ---- */
+    .lightbox {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.88);
+      z-index: 40;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .lightbox.open { display: flex; }
+    .lb-close {
+      position: absolute;
+      top: 10px; right: 14px;
+      width: 44px; height: 44px;
+      font-size: 32px;
+      line-height: 1;
+      color: white;
+      background: rgba(255,255,255,0.12);
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      z-index: 2;
+    }
+    .lb-card {
+      background: var(--card);
+      width: 100%;
+      max-width: 560px;
+      max-height: 100%;
+      border-radius: 14px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    }
+    .lb-stage { position: relative; background: #fafafa; border-bottom: 1px solid var(--border); min-height: 0; }
+    .lb-imgwrap { overflow: auto; max-height: 62vh; -webkit-overflow-scrolling: touch; }
+    .lb-imgwrap img {
+      display: block;
+      width: 100%;
+      max-height: 62vh;
+      object-fit: contain;
+      cursor: zoom-in;
+    }
+    .lb-imgwrap.zoomed img { width: 200%; max-width: none; max-height: none; cursor: zoom-out; }
+    .lb-banner {
+      position: absolute;
+      top: 14px; left: 0;
+      padding: 6px 14px 6px 12px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      color: white;
+      background: var(--dark);
+      border-radius: 0 6px 6px 0;
+      pointer-events: none;
+    }
+    .lb-banner.low, .lb-banner.out { background: var(--brand); }
+    .lb-hint {
+      position: absolute;
+      bottom: 8px; right: 10px;
+      font-size: 10.5px;
+      color: #fff;
+      background: rgba(0,0,0,0.55);
+      padding: 3px 8px;
+      border-radius: 10px;
+      pointer-events: none;
+    }
+    .lb-info { padding: 14px 18px 18px; }
+    .lb-name { font-size: 17px; font-weight: 700; line-height: 1.3; }
+    .lb-sku { font-size: 12px; color: #888; margin-top: 2px; }
+    .lb-price { font-size: 26px; font-weight: 800; color: var(--brand); margin-top: 8px; }
+
     .empty-state { text-align: center; padding: 40px 20px; color: #999; font-size: 13px; }
     .loading-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--brand); animation: pulse 1s infinite; }
     @keyframes pulse { 0%,100% { opacity: 0.3 } 50% { opacity: 1 } }
@@ -355,6 +431,25 @@
     </div>
   </div>
 
+  <!-- Product lightbox: enlarged image + stock banner + name + price -->
+  <div class="lightbox" id="lightbox" onclick="lightboxBackdrop(event)">
+    <button class="lb-close" onclick="closeLightbox()" aria-label="Close">&times;</button>
+    <div class="lb-card">
+      <div class="lb-stage">
+        <div class="lb-imgwrap" id="lbImgWrap">
+          <img id="lbImg" alt="" onclick="toggleLbZoom()">
+        </div>
+        <div class="lb-banner" id="lbBanner" style="display:none;"></div>
+        <div class="lb-hint" id="lbHint">Tap image to zoom</div>
+      </div>
+      <div class="lb-info">
+        <div class="lb-name" id="lbName"></div>
+        <div class="lb-sku" id="lbSku"></div>
+        <div class="lb-price" id="lbPrice"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="overlay" id="applyOverlay">
     <div class="sheet">
       <button class="sheet-close" onclick="closeApply()">&times;</button>
@@ -384,7 +479,7 @@
   // ==========================================================
   const API_BASE_URL = 'https://script.google.com/macros/s/AKfycbx0UhBIQzr0iSjyPuK0g_CDC2NPOUDJOe-VcCQsOVQ6u_9Ydc3FsByK8QGgXOeiKBhR/exec';
 
-  const STORAGE_KEY = 'motolease_user_email';
+  const STORAGE_KEY = 'info@motolease.co.za';
   let PRODUCTS = [];
   let CART = {};
   let USER_EMAIL = '';
@@ -538,7 +633,7 @@
 
     grid.innerHTML = filtered.map(p => {
       const img = p.image
-        ? '<img src="' + p.image + '" loading="lazy" onerror="this.style.display=&#39;none&#39;">'
+        ? '<img class="zoomable" src="' + p.image + '" loading="lazy" onclick="openLightbox(&#39;' + p.sku + '&#39;)" onerror="this.style.display=&#39;none&#39;">'
         : '<div class="noimg">No image</div>';
       const lowClass = p.qty <= 3 ? 'low' : '';
       const priceLine = p.isFee
@@ -729,6 +824,85 @@
     if (!text) { el.innerHTML = ''; return; }
     el.innerHTML = '<div class="msg ' + type + '">' + text + '</div>';
   }
+
+  // ---- Product lightbox ----
+  // Opening pushes one history entry (URL unchanged) so the phone's back
+  // button fires popstate and closes the lightbox instead of leaving the
+  // site. Every other way of closing (X, backdrop, Esc) calls
+  // closeLightbox(), which goes through history.back() so that the extra
+  // entry is consumed and history stays balanced.
+  let LB_OPEN = false;
+  let prevBodyOverflow = '';
+
+  function openLightbox(sku) {
+    const p = PRODUCTS.find(x => x.sku === sku);
+    if (!p || !p.image || LB_OPEN) return;
+
+    document.getElementById('lbImg').src = p.image;
+    document.getElementById('lbImg').alt = p.name;
+    document.getElementById('lbName').textContent = p.name;
+    document.getElementById('lbSku').textContent = p.sku;
+    document.getElementById('lbPrice').textContent = p.isFee ? 'Priced when added' : 'R ' + p.price.toFixed(2);
+
+    const banner = document.getElementById('lbBanner');
+    if (p.isFee) {
+      banner.style.display = 'none';
+    } else {
+      let text = 'In stock', cls = '';
+      if (p.qty <= 0) { text = 'Out of stock'; cls = 'out'; }
+      else if (p.qty <= 3) { text = 'Only ' + p.qty + ' left'; cls = 'low'; }
+      banner.textContent = text;
+      banner.className = 'lb-banner ' + cls;
+      banner.style.display = 'block';
+    }
+
+    setLbZoom(false);
+    prevBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.getElementById('lightbox').classList.add('open');
+    LB_OPEN = true;
+    history.pushState({ lightbox: true }, '');
+  }
+
+  // Actually hides the lightbox. Called by popstate only.
+  function hideLightbox() {
+    if (!LB_OPEN) return;
+    LB_OPEN = false;
+    document.getElementById('lightbox').classList.remove('open');
+    document.body.style.overflow = prevBodyOverflow;
+    setLbZoom(false);
+  }
+
+  // Used by X button, backdrop tap and Esc: consume our history entry,
+  // which fires popstate -> hideLightbox().
+  function closeLightbox() {
+    if (!LB_OPEN) return;
+    if (history.state && history.state.lightbox) {
+      history.back();
+    } else {
+      hideLightbox();
+    }
+  }
+
+  function lightboxBackdrop(e) {
+    if (e.target === document.getElementById('lightbox')) closeLightbox();
+  }
+
+  function setLbZoom(on) {
+    document.getElementById('lbImgWrap').classList.toggle('zoomed', on);
+    document.getElementById('lbHint').textContent = on ? 'Tap image to zoom out' : 'Tap image to zoom';
+    if (!on) document.getElementById('lbImgWrap').scrollTo(0, 0);
+  }
+  function toggleLbZoom() {
+    setLbZoom(!document.getElementById('lbImgWrap').classList.contains('zoomed'));
+  }
+
+  window.addEventListener('popstate', function () {
+    if (LB_OPEN) hideLightbox();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeLightbox();
+  });
 
   function openApply() {
     if (document.getElementById('applyLink').disabled) return;
